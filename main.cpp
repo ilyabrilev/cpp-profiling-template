@@ -54,11 +54,11 @@ void RunBenchmarks()
 
 int main()
 {
-    ProfilingInstrumentor::Instrumentor::Get().BeginSession("Profile");
+    ProfilingInstrumentor::Instrumentor::getInstance().beginSession("Profile");
 
     PrintFunction();
     RunBenchmarks();
     Function2();
 
-    ProfilingInstrumentor::Instrumentor::Get().EndSession();
+    ProfilingInstrumentor::Instrumentor::getInstance().endSession();
 }

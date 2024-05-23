@@ -12,3 +12,4 @@ Video: https://www.youtube.com/watch?v=xlAH4dbMVnU
 - Namespace added
 - Class and structures renamed
 - Docs
+- Thread safety

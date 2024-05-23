@@ -3,12 +3,14 @@
 // Check readme
 #pragma once
 
+#include <iostream>
 #include <string>
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <fstream>
-
+#include <vector>
 #include <thread>
+#include <mutex>
 
 // Function macro
 #define PROFILING 1 // Enable or disable profiling
@@ -20,6 +22,8 @@
 #else
 #define PROFILE_FUNCTION()
 #endif
+
+#define THREAD_SAFETY true
 
 namespace ProfilingInstrumentor
 {
@@ -50,41 +54,17 @@ namespace ProfilingInstrumentor
         Session *m_CurrentSession;
         std::ofstream m_OutputStream;
         int m_ProfileCount;
+        bool sessionActive = false;
 
-    public:
-        Instrumentor()
-            : m_CurrentSession(nullptr), m_ProfileCount(0)
-        {
-        }
-
-        /**
-         *  @brief Initialize profiling session
-         *  @param  name  The name of the session.
-         *  @param  filepath  filepath to results file
-         */
-        void BeginSession(const std::string &name, const std::string &filepath = "results.json")
-        {
-            m_OutputStream.open(filepath);
-            WriteHeader();
-            m_CurrentSession = new Session{name};
-        }
-
-        /**
-         *  @brief End session, write closing footer into file and close output stream
-         */
-        void EndSession()
-        {
-            WriteFooter();
-            m_OutputStream.close();
-            delete m_CurrentSession;
-            m_CurrentSession = nullptr;
-            m_ProfileCount = 0;
-        }
+        std::string filepath;
+        std::vector<ProfileResult> resultsBuffer;
+        bool threadSafe = THREAD_SAFETY;
+        mutable std::mutex m_mtx;
 
         /**
          *  @brief Write ProfileResult into stream
          */
-        void WriteProfile(const ProfileResult &result)
+        void writeResult(const ProfileResult &result)
         {
             if (m_ProfileCount++ > 0)
                 m_OutputStream << ",";
@@ -108,8 +88,9 @@ namespace ProfilingInstrumentor
         /**
          *  @brief Write profiling header that should be inside every json file in order to be interpreted by chrome
          */
-        void WriteHeader()
+        void startWriting()
         {
+            m_OutputStream.open(this->filepath);
             m_OutputStream << "{\"otherData\": {},\"traceEvents\":[";
             m_OutputStream.flush();
         }
@@ -117,16 +98,100 @@ namespace ProfilingInstrumentor
         /**
          *  @brief Write closing footer into file
          */
-        void WriteFooter()
+        void endWriting()
         {
             m_OutputStream << "]}";
             m_OutputStream.flush();
+            m_OutputStream.close();
+            delete m_CurrentSession;
+            m_CurrentSession = nullptr;
+            m_ProfileCount = 0;
+        }
+
+    
+    public:
+        /*
+        * Public methods
+        */
+
+
+        /**
+         *  @brief constructor
+         */
+        Instrumentor()
+            : m_CurrentSession(nullptr), m_ProfileCount(0), filepath("")
+        {
+        }
+
+        /**
+         *  @brief Initialize profiling session
+         *  @param  name  The name of the session.
+         *  @param  filepath  filepath to results file
+         */
+        void beginSession(const std::string &name, const std::string &filepath = "profiling/results.json")
+        {
+            m_CurrentSession = new Session{name};
+            this->filepath = filepath;
+            sessionActive = true;
+            if (threadSafe)
+            {
+                //nothing
+            }
+            else
+            {
+                startWriting();
+            }
+        }
+
+        /**
+         *  @brief End session, write closing footer into file and close output stream
+         */
+        void endSession()
+        {
+            if (threadSafe)
+            {
+                //write header
+                startWriting();
+                //write each result
+                for (unsigned i = 0; i < this->resultsBuffer.size(); i++)
+                {
+                    this->writeResult(this->resultsBuffer[i]);
+                }                
+                //write footer
+                endWriting();
+            }
+            else
+            {
+                endWriting();
+            }
+            sessionActive = false;
+        }
+
+        /**
+         *  @brief Add ProfileResult into buffer or output
+         */
+        void addResult(const ProfileResult &result)
+        {
+            if (!this->sessionActive) {
+                std::cout << "WARNING::Instrumentor::addResult Called after session ended" << std::endl;
+                return;
+            }
+
+            if (threadSafe)
+            {
+                const std::lock_guard<std::mutex> lock{m_mtx};
+                this->resultsBuffer.push_back(result);
+            }
+            else
+            {
+                writeResult(result);
+            }
         }
 
         /**
          *  @brief Get singleton
          */
-        static Instrumentor &Get()
+        static Instrumentor &getInstance()
         {
             static Instrumentor instance;
             return instance;
@@ -142,7 +207,7 @@ namespace ProfilingInstrumentor
         /**
          *  @brief Constructor. Also starts the timer
          */
-        Timer(const char *name)
+        Timer(const std::string name)
             : m_Name(name), m_Stopped(false)
         {
             m_StartTimepoint = std::chrono::high_resolution_clock::now();
@@ -154,13 +219,13 @@ namespace ProfilingInstrumentor
         ~Timer()
         {
             if (!m_Stopped)
-                Stop();
+                stop();
         }
 
         /**
          *  @brief Stop the timer
          */
-        void Stop()
+        void stop()
         {
             auto endTimepoint = std::chrono::high_resolution_clock::now();
 
@@ -168,13 +233,13 @@ namespace ProfilingInstrumentor
             long long end = std::chrono::time_point_cast<std::chrono::microseconds>(endTimepoint).time_since_epoch().count();
 
             uint32_t threadID = std::hash<std::thread::id>{}(std::this_thread::get_id());
-            Instrumentor::Get().WriteProfile({m_Name, start, end, threadID});
+            Instrumentor::getInstance().addResult({m_Name, start, end, threadID});
 
             m_Stopped = true;
         }
 
     private:
-        const char *m_Name;
+        const std::string m_Name;
         std::chrono::time_point<std::chrono::high_resolution_clock> m_StartTimepoint;
         bool m_Stopped;
     };
