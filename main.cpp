@@ -4,7 +4,7 @@
 
 #include <cmath>
 
-#include "Instrumentor.h"
+#include "ProfilingInstrumentor.h"
 
 void PrintFunction()
 {
@@ -54,11 +54,11 @@ void RunBenchmarks()
 
 int main()
 {
-    Instrumentor::Get().BeginSession("Profile");
+    ProfilingInstrumentor::Instrumentor::Get().BeginSession("Profile");
 
     PrintFunction();
     RunBenchmarks();
     Function2();
 
-    Instrumentor::Get().EndSession();
+    ProfilingInstrumentor::Instrumentor::Get().EndSession();
 }
