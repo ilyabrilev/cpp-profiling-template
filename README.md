@@ -5,6 +5,8 @@ that can be used in chrome://tracing/.
 
 Supports multithreading.
 
+The profiler is in ProfilingInstrumentor.h. Example usage is at main.cpp.
+
 Credits to: https://github.com/TheCherno
 Video: https://www.youtube.com/watch?v=xlAH4dbMVnU
 
