@@ -6,7 +6,7 @@
 
 #include "ProfilingInstrumentor.h"
 
-void PrintFunction()
+void printFunction()
 {
     PROFILE_FUNCTION();
 
@@ -17,7 +17,7 @@ void PrintFunction()
     
 }
 
-void PrintFunction(int value)
+void printFunction(int value)
 {
     PROFILE_FUNCTION();
 
@@ -28,7 +28,7 @@ void PrintFunction(int value)
     
 }
 
-void Function2()
+void function2()
 {
     PROFILE_FUNCTION();
 
@@ -39,26 +39,44 @@ void Function2()
     
 }
 
-void RunBenchmarks()
+void runBenchmarks()
 {
     PROFILE_FUNCTION();
     std::cout << "Running Benchmarks...\n";      
-    std::thread a([]() {PrintFunction(); });
-    std::thread b([]() {PrintFunction(3); });
-    std::thread c([]() {Function2(); });
+    std::thread a([]() {printFunction(); });
+    std::thread b([]() {printFunction(3); });
+    std::thread c([]() {function2(); });
 
     a.join();
     b.join();
     c.join();
 }
 
+void manualProfiling()
+{
+    ProfilingInstrumentor::Timer timer("ManualFunction1");
+    for (int i = 0; i < 1000; i++)
+    {
+        std::cout << "Hello World #" << sqrt(i) << std::endl;
+    }
+    timer.stop();
+
+    ProfilingInstrumentor::Timer timer2("ManualFunction2");
+    for (int i = 0; i < 1500; i++)
+    {
+        std::cout << "Hello World #" << sqrt(i) << std::endl;
+    }
+    timer2.stop();
+}
+
 int main()
 {
     ProfilingInstrumentor::Instrumentor::getInstance().beginSession("Profile");
 
-    PrintFunction();
-    RunBenchmarks();
-    Function2();
+    printFunction();
+    runBenchmarks();
+    function2();
+    manualProfiling();
 
     ProfilingInstrumentor::Instrumentor::getInstance().endSession();
 }
